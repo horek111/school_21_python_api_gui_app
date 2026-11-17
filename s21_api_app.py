@@ -146,6 +146,65 @@ def перевести_ключ(ключ):
 }
 
 
+# ---------- описания команд и подсказки полей ----------
+ОПИСАНИЯ_КОМАНД = {
+    "Авторизация": "Получить токен доступа (JWT) по логину и паролю School 21.",
+    "Список кампусов": "Возвращает список всех кампусов Школы 21.",
+    "Участники кампуса": "Список логинов участников выбранного кампуса (с пагинацией).",
+    "Коалиции кампуса": "Список коалиций кампуса.",
+    "Кластеры кампуса": "Список кластеров кампуса.",
+    "Карта кластера": "Схема рабочих мест кластера (кто где сидит).",
+    "Список событий": "События за период (мероприятия, экзамены, тесты).",
+    "Текущие продажи": "Статусы текущих продаж в параллели.",
+    "Проект по номеру": "Информация о проекте по его ID.",
+    "Участники проекта": "Список участников проекта (с фильтрами).",
+    "Участники коалиции": "Список участников коалиции.",
+    "Информация об участнике": "Базовая информация об участнике по логину.",
+    "Рабочее место участника": "Где сидит участник (кластер, ряд, место).",
+    "Навыки участника": "Навыки и баллы участника.",
+    "Проекты участника": "Проекты участника (с фильтром по статусу).",
+    "Проект участника по номеру": "Информация об одном проекте участника.",
+    "Баллы участника": "Баллы пир-ревью, код-ревью, монеты.",
+    "Время в системе участника": "Среднее недельное время в системе.",
+    "Отзывы об участнике": "Средние оценки от проверяющих.",
+    "История опыта участника": "История начисления опыта (XP).",
+    "Курсы участника": "Курсы участника (с фильтром по статусу).",
+    "Курс участника по номеру": "Информация об одном курсе участника.",
+    "Коалиция участника": "Коалиция и ранг участника.",
+    "Значки участника": "Список значков участника.",
+    "Курс по номеру": "Информация о курсе по ID.",
+    "Карта проектов": "Граф проектов участника (узлы и связи).",
+}
+
+# описания для "ВСЕ"-команд
+for _н in ["ВСЕ участники кампуса", "ВСЕ участники проекта", "ВСЕ участники коалиции",
+           "ВСЕ проекты участника", "ВСЕ курсы участника", "ВСЯ история опыта",
+           "ВСЕ значки участника", "ВСЕ кампусы", "ВСЕ кластеры кампуса",
+           "ВСЕ коалиции кампуса", "ВСЕ события"]:
+    ОПИСАНИЯ_КОМАНД[_н] = "Автоматически листает все страницы (по 1000 записей) и показывает полный список."
+
+ПОДСКАЗКИ_ПОЛЕЙ = {
+    "campusId": "UUID кампуса (из «Список кампусов»)",
+    "limit": "Макс. записей за запрос (до 1000)",
+    "offset": "Смещение для пагинации: 0, 1000, 2000...",
+    "occupied": "true — занятые места, false — свободные, пусто — все",
+    "from": "Дата начала (обычный формат: 2024-01-23)",
+    "to": "Дата конца (обычный формат: 2024-01-23)",
+    "type": "ACTIVITY, EXAM, TEST или пусто — все типы",
+    "status": "ASSIGNED, REGISTERED, IN_PROGRESS, IN_REVIEWS, ACCEPTED, FAILED",
+    "login": "Логин участника, например lavonnet",
+    "date": "Дата ГГГГ-ММ-ДД, пусто — текущая неделя",
+    "projectId": "ID проекта",
+    "coalitionId": "ID коалиции",
+    "clusterId": "ID кластера",
+    "courseId": "ID курса",
+    "username": "Ваш логин School 21",
+    "password": "Ваш пароль School 21",
+    "campusIdFilter": "UUID кампуса для фильтрации",
+    "search": "Поиск по подстроке (логин/название)",
+    "projectType": "INDIVIDUAL (индивидуальный) или GROUP (групповой)",
+}
+
 def очистить_параметры(параметры):
     return {ключ: значение for ключ, значение in параметры.items() if значение not in (None, "")}
 
@@ -157,6 +216,48 @@ def _обрезать(текст, ширина=МАКС_ШИРИНА_ЯЧЕЙК�
     if len(текст) <= ширина:
         return текст
     return текст[: ширина - 1] + "…"
+
+
+def _форматировать_дату(значение):
+    """Преобразует ISO-дату в читаемый формат ДД.ММ.ГГГГ ЧЧ:ММ."""
+    if not isinstance(значение, str):
+        return значение
+    s = значение.strip()
+    if not s:
+        return значение
+    import re
+    if not ("T" in s or re.match(r"^\d{4}-\d{2}-\d{2}", s)):
+        return значение
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if "T" in s:
+            return dt.strftime("%d.%m.%Y %H:%M")
+        return dt.strftime("%d.%m.%Y")
+    except ValueError:
+        return значение
+
+
+def _кратко(значение):
+    """Краткое представление сложного значения для ячейки таблицы."""
+    if значение is None:
+        return "—"
+    if isinstance(значение, str) and значение.strip() == "":
+        return "—"
+    if isinstance(значение, list):
+        if not значение:
+            return "(пусто)"
+        if all(isinstance(x, dict) for x in значение):
+            части = []
+            for x in значение:
+                части.append(str(x.get("code") or x.get("name") or x.get("title") or x.get("id") or x))
+            return ", ".join(части)
+        return ", ".join(str(x) for x in значение)
+    if isinstance(значение, dict):
+        for v in значение.values():
+            return _кратко(v)
+        return str(значение)
+    return _форматировать_дату(значение)
 
 
 def _таблица(список):
@@ -174,13 +275,14 @@ def _таблица(список):
         лимит = 40 if ключ == "id" else МАКС_ШИРИНА_ЯЧЕЙКИ
         ширина = len(перевести_ключ(ключ))
         for элемент in список:
-            ширина = max(ширина, len(str(элемент.get(ключ, ""))))
+            ширина = max(ширина, len(str(_кратко(элемент.get(ключ, "")))))
         ширины[ключ] = min(ширина, лимит)
 
     def строка_ячеек(значения):
         ячейки = []
         for ключ in ключи:
-            текст = _обрезать(значения.get(ключ, "") if isinstance(значения, dict) else значения[ключ], ширины[ключ])
+            сырые = значения.get(ключ, "") if isinstance(значения, dict) else значения[ключ]
+            текст = _обрезать(_кратко(сырые), ширины[ключ])
             ячейки.append(текст.ljust(ширины[ключ]))
         return " | ".join(ячейки)
 
@@ -200,7 +302,7 @@ def _список_колонками(список, колонок=КОЛОНКИ
     строки = []
     for i in range(0, len(список), колонок):
         кусок = список[i:i + колонок]
-        строки.append("  ".join(str(x).ljust(ширина) for x in кусок))
+        строки.append("  ".join(str(_форматировать_дату(x)).ljust(ширина) for x in кусок))
     return "\n".join(строки)
 
 
@@ -221,6 +323,12 @@ def _карточка(словарь, отступ=""):
                     for строка in табл.split("\n"):
                         строки.append(f"{отступ}  {строка}")
                     continue
+                # если таблицу построить нельзя — выводим каждый элемент карточкой
+                строки.append(f"{отступ}{перевести_ключ(ключ)} ({len(значение)}):")
+                for i, элемент in enumerate(значение, 1):
+                    строки.append(f"{отступ}  [{i}]")
+                    строки.append(_карточка(элемент, отступ + "    "))
+                continue
             if all(not isinstance(x, (dict, list)) for x in значение):
                 строки.append(f"{отступ}{перевести_ключ(ключ)} ({len(значение)}):")
                 for строка in _список_колонками(значение).split("\n"):
@@ -231,7 +339,7 @@ def _карточка(словарь, отступ=""):
                     строки.append(f"{отступ}  [{i}]")
                     строки.append(_красиво_отформатировать(x, отступ + "    "))
         else:
-            строки.append(f"{отступ}{перевести_ключ(ключ)}: {значение}")
+            строки.append(f"{отступ}{перевести_ключ(ключ)}: {_форматировать_дату(значение)}")
     return "\n".join(строки)
 
 
@@ -284,6 +392,7 @@ class КлиентAPI:
     def __init__(self):
         self.токен = None
         self.сессия = requests.Session()
+        self.последний_запрос = ""
 
     def _заголовки(self):
         заголовки = {"Accept": "application/json"}
@@ -311,11 +420,18 @@ class КлиентAPI:
 
     def запрос(self, метод, путь, параметры=None):
         адрес = АДРЕС_API + путь
+        очищенные = очистить_параметры(параметры or {})
+        # сохраняем строку запроса для отладки
+        if очищенные:
+            qs = "&".join(f"{k}={v}" for k, v in очищенные.items())
+            self.последний_запрос = f"{метод} {путь}?{qs}"
+        else:
+            self.последний_запрос = f"{метод} {путь}"
         ответ = self.сессия.request(
             метод,
             адрес,
             headers=self._заголовки(),
-            params=очистить_параметры(параметры or {}),
+            params=очищенные,
             timeout=30,
         )
         try:
@@ -382,7 +498,7 @@ def команда_авторизации():
         return 200, результат
 
     return {
-        "название": "Получить токен доступа",
+        "название": "Авторизация",
         "поля": [("Логин", "username", "", False), ("Пароль", "password", "", True)],
         "обработчик": обработчик,
     }
@@ -392,27 +508,27 @@ def команда_авторизации():
     команда_авторизации(),
     сделать_get_команду("Список кампусов", "/campuses", [], []),
     сделать_get_команду("Участники кампуса", "/campuses/{campusId}/participants",
-        [("Номер кампуса", "campusId", "", False), ("Лимит записей", "limit", "50", False), ("Смещение (страница)", "offset", "0", False)],
-        [("limit", "limit"), ("offset", "offset")]),
+        [("Номер кампуса", "campusId", "", False), ("Лимит записей", "limit", "50", False), ],
+        [("limit", "limit"), ]),
     сделать_get_команду("Коалиции кампуса", "/campuses/{campusId}/coalitions",
         [("Номер кампуса", "campusId", "", False)], []),
     сделать_get_команду("Кластеры кампуса", "/campuses/{campusId}/clusters",
         [("Номер кампуса", "campusId", "", False)], []),
     сделать_get_команду("Карта кластера", "/clusters/{clusterId}/map",
-        [("Номер кластера", "clusterId", "", False), ("Лимит записей", "limit", "50", False), ("Смещение (страница)", "offset", "0", False), ("Только занятые места (true/false)", "occupied", "", False)],
-        [("limit", "limit"), ("offset", "offset"), ("occupied", "occupied")]),
+        [("Номер кластера", "clusterId", "", False), ("Лимит записей", "limit", "50", False), ("Только занятые места (true/false)", "occupied", "", False)],
+        [("limit", "limit"), ("occupied", "occupied")]),
     сделать_get_команду("Список событий", "/events",
-        [("Начало периода (ISO)", "from", "", False), ("Конец периода (ISO)", "to", "", False), ("Тип события", "type", "", False), ("Лимит записей", "limit", "50", False), ("Смещение (страница)", "offset", "0", False)],
-        [("from", "from"), ("to", "to"), ("type", "type"), ("limit", "limit"), ("offset", "offset")]),
+        [("Начало периода (ISO)", "from", "", False), ("Конец периода (ISO)", "to", "", False), ("Тип события", "type", "", False), ("Лимит записей", "limit", "50", False), ],
+        [("from", "from"), ("to", "to"), ("type", "type"), ("limit", "limit"), ]),
     сделать_get_команду("Текущие продажи", "/sales", [], []),
     сделать_get_команду("Проект по номеру", "/projects/{projectId}",
         [("Номер проекта", "projectId", "", False)], []),
     сделать_get_команду("Участники проекта", "/projects/{projectId}/participants",
-        [("Номер проекта", "projectId", "", False), ("Лимит записей", "limit", "50", False), ("Смещение (страница)", "offset", "0", False), ("Статус", "status", "", False), ("Номер кампуса (фильтр)", "campusIdFilter", "", False)],
-        [("limit", "limit"), ("offset", "offset"), ("status", "status"), ("campusId", "campusIdFilter")]),
+        [("Номер проекта", "projectId", "", False), ("Лимит записей", "limit", "50", False), ("Статус", "status", "", False), ("Номер кампуса (фильтр)", "campusIdFilter", "", False)],
+        [("limit", "limit"), ("status", "status"), ("campusId", "campusIdFilter")]),
     сделать_get_команду("Участники коалиции", "/coalitions/{coalitionId}/participants",
-        [("Номер коалиции", "coalitionId", "", False), ("Лимит записей", "limit", "50", False), ("Смещение (страница)", "offset", "0", False)],
-        [("limit", "limit"), ("offset", "offset")]),
+        [("Номер коалиции", "coalitionId", "", False), ("Лимит записей", "limit", "50", False), ],
+        [("limit", "limit"), ]),
     сделать_get_команду("Информация об участнике", "/participants/{login}",
         [("Логин участника", "login", "", False)], []),
     сделать_get_команду("Рабочее место участника", "/participants/{login}/workstation",
@@ -420,8 +536,8 @@ def команда_авторизации():
     сделать_get_команду("Навыки участника", "/participants/{login}/skills",
         [("Логин участника", "login", "", False)], []),
     сделать_get_команду("Проекты участника", "/participants/{login}/projects",
-        [("Логин участника", "login", "", False), ("Лимит записей", "limit", "10", False), ("Смещение (страница)", "offset", "0", False), ("Статус", "status", "", False)],
-        [("limit", "limit"), ("offset", "offset"), ("status", "status")]),
+        [("Логин участника", "login", "", False), ("Лимит записей", "limit", "10", False), ("Статус", "status", "", False)],
+        [("limit", "limit"), ("status", "status")]),
     сделать_get_команду("Проект участника по номеру", "/participants/{login}/projects/{projectId}",
         [("Логин участника", "login", "", False), ("Номер проекта", "projectId", "", False)], []),
     сделать_get_команду("Баллы участника", "/participants/{login}/points",
@@ -432,11 +548,11 @@ def команда_авторизации():
     сделать_get_команду("Отзывы об участнике", "/participants/{login}/feedback",
         [("Логин участника", "login", "", False)], []),
     сделать_get_команду("История опыта участника", "/participants/{login}/experience-history",
-        [("Логин участника", "login", "", False), ("Лимит записей", "limit", "50", False), ("Смещение (страница)", "offset", "0", False)],
-        [("limit", "limit"), ("offset", "offset")]),
+        [("Логин участника", "login", "", False), ("Лимит записей", "limit", "50", False), ],
+        [("limit", "limit"), ]),
     сделать_get_команду("Курсы участника", "/participants/{login}/courses",
-        [("Логин участника", "login", "", False), ("Лимит записей", "limit", "10", False), ("Смещение (страница)", "offset", "0", False), ("Статус", "status", "", False)],
-        [("limit", "limit"), ("offset", "offset"), ("status", "status")]),
+        [("Логин участника", "login", "", False), ("Лимит записей", "limit", "10", False), ("Статус", "status", "", False)],
+        [("limit", "limit"), ("status", "status")]),
     сделать_get_команду("Курс участника по номеру", "/participants/{login}/courses/{courseId}",
         [("Логин участника", "login", "", False), ("Номер курса", "courseId", "", False)], []),
     сделать_get_команду("Коалиция участника", "/participants/{login}/coalition",
@@ -474,6 +590,76 @@ def команда_авторизации():
 
 # ---------- современный интерфейс ----------
 
+
+# ---------- клиентская фильтрация для списков ----------
+def _обернуть_участники_кампуса(базовая):
+    def обработчик(api, значения):
+        код, тело = базовая["обработчик"](api, значения)
+        if код != 200 or not isinstance(тело, dict):
+            return код, тело
+        участники = тело.get("participants", [])
+        поиск = (значения.get("search") or "").lower().strip()
+        if поиск:
+            участники = [x for x in участники if поиск in str(x).lower()]
+        результат = dict(тело)
+        результат["participants"] = участники
+        return код, результат
+    поля = list(базовая["поля"]) + [("Поиск по логину", "search", "", False)]
+    return {"название": базовая["название"], "поля": поля, "обработчик": обработчик}
+
+
+def _обернуть_проекты_участника(базовая):
+    def обработчик(api, значения):
+        код, тело = базовая["обработчик"](api, значения)
+        if код != 200 or not isinstance(тело, dict):
+            return код, тело
+        проекты = тело.get("projects", [])
+        тип = (значения.get("projectType") or "").strip()
+        поиск = (значения.get("search") or "").lower().strip()
+        отфильтрованные = []
+        for p in проекты:
+            if тип and p.get("type") != тип:
+                continue
+            if поиск and поиск not in (p.get("title") or "").lower():
+                continue
+            отфильтрованные.append(p)
+        результат = dict(тело)
+        результат["projects"] = отфильтрованные
+        return код, результат
+    поля = list(базовая["поля"]) + [
+        ("Тип проекта", "projectType", "", False),
+        ("Поиск по названию", "search", "", False),
+    ]
+    return {"название": базовая["название"], "поля": поля, "обработчик": обработчик}
+
+
+# Применяем обёртки к соответствующим командам
+for _i, _к in enumerate(КОМАНДЫ):
+    if _к["название"] == "Участники кампуса":
+        КОМАНДЫ[_i] = _обернуть_участники_кампуса(_к)
+    if _к["название"] == "Проекты участника":
+        КОМАНДЫ[_i] = _обернуть_проекты_участника(_к)
+
+
+def _обернуть_курсы_участника(базовая):
+    def обработчик(api, значения):
+        код, тело = базовая["обработчик"](api, значения)
+        if код != 200 or not isinstance(тело, dict):
+            return код, тело
+        курсы = тело.get("courses", [])
+        поиск = (значения.get("search") or "").lower().strip()
+        if поиск:
+            курсы = [x for x in курсы if поиск in (x.get("title") or "").lower()]
+        результат = dict(тело)
+        результат["courses"] = курсы
+        return код, результат
+    поля = list(базовая["поля"]) + [("Поиск по названию", "search", "", False)]
+    return {"название": базовая["название"], "поля": поля, "обработчик": обработчик}
+
+for _i, _к in enumerate(КОМАНДЫ):
+    if _к["название"] == "Курсы участника":
+        КОМАНДЫ[_i] = _обернуть_курсы_участника(_к)
+
 class Приложение:
     def __init__(self, корень):
         self.корень = корень
@@ -483,6 +669,7 @@ class Приложение:
         self.последний_ответ = None
         self.показывать_json = False
         self._все_команды = list(КОМАНДЫ)
+        self._состояния = {}  # сохранённые параметры/результаты по командам
 
         корень.title("School 21 API Client")
         корень.geometry("1320x820")
@@ -490,60 +677,7 @@ class Приложение:
         корень.configure(bg=ЦВЕТ["bg"])
 
         self._настроить_стили()
-        self._показать_экран_логина()
-
-    def _показать_экран_логина(self):
-        for w in self.корень.winfo_children():
-            w.destroy()
-        self.корень.configure(bg=ЦВЕТ["bg"])
-
-        контейнер = tk.Frame(self.корень, bg=ЦВЕТ["bg"])
-        контейнер.pack(fill=tk.BOTH, expand=True)
-
-        карточка = tk.Frame(контейнер, bg=ЦВЕТ["panel"], highlightbackground=ЦВЕТ["border"], highlightthickness=1)
-        карточка.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=400, height=320)
-
-        tk.Label(карточка, text="Вход в School 21 API", bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], font=("Segoe UI", 15, "bold")).pack(pady=(22, 12))
-
-        форма = tk.Frame(карточка, bg=ЦВЕТ["panel"])
-        форма.pack(padx=32, fill=tk.X)
-
-        tk.Label(форма, text="Логин", bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], font=("Segoe UI", 10)).grid(row=0, column=0, sticky=tk.W, pady=6)
-        поле_логин = ttk.Entry(форма)
-        поле_логин.grid(row=0, column=1, sticky=tk.EW, pady=6, padx=(10, 0))
-
-        tk.Label(форма, text="Пароль", bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], font=("Segoe UI", 10)).grid(row=1, column=0, sticky=tk.W, pady=6)
-        поле_пароль = ttk.Entry(форма, show="*")
-        поле_пароль.grid(row=1, column=1, sticky=tk.EW, pady=6, padx=(10, 0))
-
-        форма.columnconfigure(1, weight=1)
-
-        статус = tk.StringVar(value="")
-        tk.Label(карточка, textvariable=статус, bg=ЦВЕТ["panel"], fg=ЦВЕТ["error"], font=("Segoe UI", 9)).pack(pady=4)
-
-        def войти():
-            логин = поле_логин.get().strip()
-            пароль = поле_пароль.get().strip()
-            if not логин or not пароль:
-                статус.set("Введите логин и пароль")
-                return
-            try:
-                self.api.получить_токен(логин, пароль)
-                self.статус_токена.set("● Токен получен")
-                self._построить_основной_интерфейс()
-            except Exception as e:
-                статус.set(f"Ошибка: {e}")
-
-        def пропустить():
-            self._построить_основной_интерфейс()
-
-        кнопки = tk.Frame(карточка, bg=ЦВЕТ["panel"])
-        кнопки.pack(pady=12)
-        ttk.Button(кнопки, text="Войти", style="TButton", command=войти).pack(side=tk.LEFT, padx=6)
-        ttk.Button(кнопки, text="Пропустить", style="Secondary.TButton", command=пропустить).pack(side=tk.LEFT, padx=6)
-
-        поле_логин.focus_set()
-        self.корень.bind("<Return>", lambda e: войти())
+        self._построить_основной_интерфейс()
 
     def _настроить_стили(self):
         стиль = ttk.Style()
@@ -563,7 +697,10 @@ class Приложение:
         стиль.configure("Secondary.TButton", background=ЦВЕТ["panel2"], foreground=ЦВЕТ["text"], font=("Segoe UI", 10), padding=(12, 7))
         стиль.map("Secondary.TButton", background=[("active", ЦВЕТ["panel"]), ("pressed", ЦВЕТ["panel"])])
         стиль.configure("TProgressbar", background=ЦВЕТ["accent"], troughcolor=ЦВЕТ["panel2"], bordercolor=ЦВЕТ["panel2"], lightcolor=ЦВЕТ["accent"], darkcolor=ЦВЕТ["accent"])
-        стиль.configure("Vertical.TScrollbar", background=ЦВЕТ["panel2"], troughcolor=ЦВЕТ["bg"], arrowcolor=ЦВЕТ["muted"], bordercolor=ЦВЕТ["bg"])
+        стиль.configure("TCombobox", fieldbackground=ЦВЕТ["panel2"], foreground=ЦВЕТ["text"], background=ЦВЕТ["panel2"], arrowcolor=ЦВЕТ["muted"], bordercolor=ЦВЕТ["border"], lightcolor=ЦВЕТ["border"], darkcolor=ЦВЕТ["border"])
+        стиль.map("TCombobox", fieldbackground=[("readonly", ЦВЕТ["panel2"]), ("active", ЦВЕТ["panel2"])], foreground=[("readonly", ЦВЕТ["text"]), ("active", ЦВЕТ["text"])], selectbackground=[("readonly", ЦВЕТ["accent"])], selectforeground=[("readonly", "white")])
+        стиль.configure("Vertical.TScrollbar", width=10, background=ЦВЕТ["muted"], troughcolor=ЦВЕТ["panel"], arrowcolor=ЦВЕТ["panel"], bordercolor=ЦВЕТ["panel"], lightcolor=ЦВЕТ["panel"], darkcolor=ЦВЕТ["panel"])
+        стиль.configure("Horizontal.TScrollbar", height=12, background=ЦВЕТ["accent"], troughcolor=ЦВЕТ["panel2"], arrowcolor=ЦВЕТ["panel2"], bordercolor=ЦВЕТ["panel2"], lightcolor=ЦВЕТ["accent"], darkcolor=ЦВЕТ["accent"])
 
     def _построить_основной_интерфейс(self):
         # корневой контейнер
@@ -613,8 +750,45 @@ class Приложение:
         )
         self.список.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         скролл.config(command=self.список.yview)
-        for команда in КОМАНДЫ:
-            self.список.insert(tk.END, команда["название"])
+        # порядок: самые частые вверху, затем по категориям
+        self._порядок_списка = [
+            "─── Частые ───",
+            "Авторизация",
+            "Информация об участнике",
+            "История опыта участника",
+            "Баллы участника",
+            "Рабочее место участника",
+            "Навыки участника",
+            "Участники кампуса",
+            "Список кампусов",
+            "Список событий",
+            "─── Загрузить всё ───",
+        ] + [c["название"] for c in КОМАНДЫ if c["название"].startswith("ВСЕ") or c["название"].startswith("ВСЯ")] + [
+            "─── Участник ───",
+            "Проекты участника",
+            "Курсы участника",
+            "Время в системе участника",
+            "Отзывы об участнике",
+            "Коалиция участника",
+            "Значки участника",
+            "Проект участника по номеру",
+            "Курс участника по номеру",
+            "─── Кампусы и кластеры ───",
+            "Коалиции кампуса",
+            "Кластеры кампуса",
+            "Карта кластера",
+            "─── Проекты и курсы ───",
+            "Проект по номеру",
+            "Участники проекта",
+            "Участники коалиции",
+            "Курс по номеру",
+            "─── События и продажи ───",
+            "Текущие продажи",
+            "─── Утилиты ───",
+            "Карта проектов",
+        ]
+        for имя in self._порядок_списка:
+            self.список.insert(tk.END, имя)
         self.список.bind("<<ListboxSelect>>", self.при_выборе)
 
         # content
@@ -638,6 +812,8 @@ class Приложение:
         self.кнопка_копировать.pack(side=tk.LEFT, padx=8)
         self.кнопка_вид = ttk.Button(строка_кнопок, text="Показать JSON", style="Secondary.TButton", command=self.переключить_вид)
         self.кнопка_вид.pack(side=tk.LEFT)
+        self.кнопка_восстановить = ttk.Button(строка_кнопок, text="Восстановить результат", style="Secondary.TButton", command=self.восстановить_результат)
+        self.кнопка_восстановить.pack(side=tk.LEFT, padx=6)
 
         # прогресс-бар
         self.прогресс = ttk.Progressbar(content, mode="indeterminate", style="TProgressbar")
@@ -651,9 +827,11 @@ class Приложение:
         рамка_результата.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         скролл_рез = ttk.Scrollbar(рамка_результата, orient=tk.VERTICAL, style="Vertical.TScrollbar")
         скролл_рез.pack(side=tk.RIGHT, fill=tk.Y)
+        скролл_гориз = ttk.Scrollbar(рамка_результата, orient=tk.HORIZONTAL, style="Horizontal.TScrollbar")
+        скролл_гориз.pack(side=tk.BOTTOM, fill=tk.X)
         self.результат = tk.Text(
             рамка_результата,
-            wrap=tk.WORD,
+            wrap=tk.NONE,
             font=("Consolas", 10),
             bg=ЦВЕТ["panel2"],
             fg=ЦВЕТ["text"],
@@ -661,11 +839,22 @@ class Приложение:
             borderwidth=0,
             highlightthickness=0,
             yscrollcommand=скролл_рез.set,
+            xscrollcommand=скролл_гориз.set,
             padx=10,
             pady=8,
         )
         self.результат.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         скролл_рез.config(command=self.результат.yview)
+        скролл_гориз.config(command=self.результат.xview)
+        # горизонтальная прокрутка колесом мыши (Shift+колесо)
+        def _прокрутка_горизонтальная(событие):
+            if событие.num == 4 or событие.delta > 0:
+                self.результат.xview_scroll(-1, "units")
+            else:
+                self.результат.xview_scroll(1, "units")
+        self.результат.bind("<Shift-MouseWheel>", _прокрутка_горизонтальная)
+        self.результат.bind("<Shift-Button-4>", _прокрутка_горизонтальная)
+        self.результат.bind("<Shift-Button-5>", _прокрутка_горизонтальная)
 
         # статус-бар
         статус_бар = tk.Frame(главный, bg=ЦВЕТ["panel"], height=24)
@@ -685,9 +874,11 @@ class Приложение:
         if запрос == "поиск...":
             запрос = ""
         self.список.delete(0, tk.END)
-        for команда in КОМАНДЫ:
-            if запрос in команда["название"].lower():
-                self.список.insert(tk.END, команда["название"])
+        for имя in self._порядок_списка:
+            if имя.startswith("───"):
+                continue
+            if запрос in имя.lower():
+                self.список.insert(tk.END, имя)
 
     def показать_текст(self, текст):
         self.результат.config(state=tk.NORMAL)
@@ -700,12 +891,30 @@ class Приложение:
         if not выделение:
             return
         имя = self.список.get(выделение[0])
+        if имя.startswith("───"):
+            # игнорируем заголовки-разделители
+            self.список.selection_clear(0, tk.END)
+            return
+        # сохраняем состояние текущей команды (включая результат)
+        if self.текущая_команда is not None:
+            self._сохранить_состояние(self.текущая_команда["название"])
         for команда in КОМАНДЫ:
             if команда["название"] == имя:
                 self.текущая_команда = команда
                 break
         if self.текущая_команда:
             self.построить_форму(self.текущая_команда)
+            # восстанавливаем только параметры, результат очищаем
+            состояние = self._состояния.get(self.текущая_команда["название"])
+            if состояние:
+                for ключ, значение in состояние["значения"].items():
+                    if ключ in self.поля_ввода:
+                        try:
+                            self.поля_ввода[ключ].delete(0, tk.END)
+                            self.поля_ввода[ключ].insert(0, значение)
+                        except Exception:
+                            pass
+            self.показать_текст("Готово. Нажмите «Выполнить» или «Восстановить результат».")
 
     def _пустая_форма(self):
         for виджет in self.форма.winfo_children():
@@ -717,7 +926,10 @@ class Приложение:
             виджет.destroy()
         self.поля_ввода = {}
         # заголовок выбранной команды
-        tk.Label(self.форма, text=команда["название"], bg=ЦВЕТ["panel"], fg=ЦВЕТ["accent"], font=("Segoe UI", 11, "bold")).pack(anchor=tk.W, pady=(0, 6))
+        tk.Label(self.форма, text=команда["название"], bg=ЦВЕТ["panel"], fg=ЦВЕТ["accent"], font=("Segoe UI", 11, "bold")).pack(anchor=tk.W, pady=(0, 2))
+        описание = ОПИСАНИЯ_КОМАНД.get(команда["название"])
+        if описание:
+            tk.Label(self.форма, text=описание, bg=ЦВЕТ["panel"], fg=ЦВЕТ["muted"], font=("Segoe UI", 9), wraplength=820, justify=tk.LEFT).pack(anchor=tk.W, pady=(0, 6))
         поля = команда.get("поля", [])
         if not поля:
             tk.Label(self.форма, text="Параметры не требуются.", bg=ЦВЕТ["panel"], fg=ЦВЕТ["muted"], font=("Segoe UI", 10)).pack(anchor=tk.W, pady=4)
@@ -726,13 +938,71 @@ class Приложение:
                 строка = tk.Frame(self.форма, bg=ЦВЕТ["panel"])
                 строка.pack(fill=tk.X, pady=4)
                 tk.Label(строка, text=метка, bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], width=26, anchor=tk.W, font=("Segoe UI", 10)).pack(side=tk.LEFT)
-                поле = ttk.Entry(строка)
-                if секрет:
-                    поле.config(show="*")
-                поле.insert(0, значение_по_умолчанию)
+                if ключ == "type":
+                    поле = ttk.Combobox(строка, values=["", "ACTIVITY", "EXAM", "TEST"], state="readonly")
+                    поле.set(значение_по_умолчанию)
+                elif ключ == "projectType":
+                    поле = ttk.Combobox(строка, values=["", "INDIVIDUAL", "GROUP"], state="readonly")
+                    поле.set(значение_по_умолчанию)
+                elif ключ == "status":
+                    поле = ttk.Combobox(строка, values=["", "ASSIGNED", "REGISTERED", "IN_PROGRESS", "IN_REVIEWS", "ACCEPTED", "FAILED"], state="readonly")
+                    поле.set(значение_по_умолчанию)
+                elif ключ == "occupied":
+                    поле = ttk.Combobox(строка, values=["", "true", "false"], state="readonly")
+                    поле.set(значение_по_умолчанию)
+                else:
+                    поле = ttk.Entry(строка)
+                    if секрет:
+                        поле.config(show="*")
+                    поле.insert(0, значение_по_умолчанию)
                 поле.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 self.поля_ввода[ключ] = поле
+                подсказка = ПОДСКАЗКИ_ПОЛЕЙ.get(ключ)
+                if подсказка:
+                    tk.Label(self.форма, text=f"  ↳ {подсказка}", bg=ЦВЕТ["panel"], fg=ЦВЕТ["muted"], font=("Segoe UI", 8)).pack(anchor=tk.W, pady=(0, 2))
+        # восстановление сохранённых значений
+        состояние = self._состояния.get(команда["название"])
+        if состояние:
+            for ключ, значение in состояние["значения"].items():
+                if ключ in self.поля_ввода:
+                    try:
+                        self.поля_ввода[ключ].delete(0, tk.END)
+                        self.поля_ввода[ключ].insert(0, значение)
+                    except Exception:
+                        pass
+        if any(k in self.поля_ввода for k in ("from", "to")):
+            tk.Label(self.форма, text="Введите дату: 2024-01-23 или 23.01.2024 — время автоматически 00:00 UTC", bg=ЦВЕТ["panel"], fg=ЦВЕТ["muted"], font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(6, 0))
+        if "type" in self.поля_ввода:
+            tk.Label(self.форма, text="Типы событий: ACTIVITY (мероприятие), EXAM (экзамен), TEST (тест). Пусто — все типы.", bg=ЦВЕТ["panel"], fg=ЦВЕТ["muted"], font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(2, 0))
         self.кнопка_выполнить.config(state=tk.NORMAL)
+
+    def _сохранить_состояние(self, имя):
+        if self.текущая_команда is None:
+            return
+        значения = {}
+        for ключ, поле in self.поля_ввода.items():
+            try:
+                значения[ключ] = поле.get()
+            except Exception:
+                значения[ключ] = ""
+        self._состояния[имя] = {
+            "значения": значения,
+            "результат": self.результат.get("1.0", tk.END),
+            "последний_ответ": self.последний_ответ,
+        }
+
+    def _восстановить_состояние(self, имя):
+        состояние = self._состояния.get(имя)
+        if not состояние:
+            return
+        for ключ, значение in состояние["значения"].items():
+            if ключ in self.поля_ввода:
+                try:
+                    self.поля_ввода[ключ].delete(0, tk.END)
+                    self.поля_ввода[ключ].insert(0, значение)
+                except Exception:
+                    pass
+        self.последний_ответ = состояние.get("последний_ответ")
 
     def собрать_значения(self):
         значения = {}
@@ -752,14 +1022,42 @@ class Приложение:
 
     def _выполнить_в_потоке(self, команда, значения):
         try:
+            if "from" in значения and not значения.get("from"):
+                raise ValueError("Укажите начало периода (поле «С»)")
+            if "to" in значения and not значения.get("to"):
+                raise ValueError("Укажите конец периода (поле «По»)")
+            # проверка формата ISO-даты
+            from datetime import datetime
+            for поле_даты in ("from", "to"):
+                значение = значения.get(поле_даты)
+                if значение:
+                    значение = значение.strip()
+                    # нормализация: обычный формат -> ISO с 00:00:00Z
+                    if "T" not in значение:
+                        нормализовано = None
+                        for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%Y/%m/%d"):
+                            try:
+                                dt = datetime.strptime(значение, fmt)
+                                нормализовано = dt.strftime("%Y-%m-%dT00:00:00Z")
+                                break
+                            except ValueError:
+                                continue
+                        if нормализовано is None:
+                            raise ValueError(f"Неверный формат даты в поле «{поле_даты}». Введите, например: 2024-01-23 или 23.01.2024")
+                        значения[поле_даты] = нормализовано
+                    else:
+                        try:
+                            datetime.fromisoformat(значение.replace("Z", "+00:00"))
+                        except ValueError:
+                            raise ValueError(f"Неверный формат даты в поле «{поле_даты}». Пример: 2024-01-23T00:00:00Z")
             код, тело = команда["обработчик"](self.api, значения)
             self.последний_ответ = (код, тело)
             if self.показывать_json:
                 текст = json.dumps(тело, ensure_ascii=False, indent=2) if isinstance(тело, (dict, list)) else str(тело)
             else:
                 текст = _красиво_отформатировать(тело) if isinstance(тело, (dict, list)) else str(тело)
-            результат = f"Код ответа: {код}\n\n{текст}"
-            if команда["название"] == "Получить токен доступа":
+            результат = f"Запрос: {self.api.последний_запрос}\nКод ответа: {код}\n\n{текст}"
+            if команда["название"] == "Авторизация":
                 self.статус_токена.set("● Токен получен" if self.api.токен else "● Токен не получен")
                 self.строка_статуса.set("Токен получен" if self.api.токен else "Токен не получен")
             else:
@@ -774,6 +1072,8 @@ class Приложение:
         self.показать_текст(результат)
         self.кнопка_выполнить.config(state=tk.NORMAL)
         self.прогресс.stop()
+        if self.текущая_команда is not None:
+            self._сохранить_состояние(self.текущая_команда["название"])
 
     def переключить_вид(self):
         self.показывать_json = not self.показывать_json
@@ -785,6 +1085,16 @@ class Приложение:
             else:
                 текст = _красиво_отформатировать(тело) if isinstance(тело, (dict, list)) else str(тело)
             self.показать_текст(f"Код ответа: {код}\n\n{текст}")
+
+    def восстановить_результат(self):
+        if self.текущая_команда is None:
+            return
+        состояние = self._состояния.get(self.текущая_команда["название"])
+        if состояние and состояние.get("результат"):
+            self.показать_текст(состояние["результат"].rstrip("\n"))
+            self.последний_ответ = состояние.get("последний_ответ")
+        else:
+            self.показать_текст("Сохранённого результата нет. Нажмите «Выполнить».")
 
     def копировать(self):
         текст = self.результат.get("1.0", tk.END)
