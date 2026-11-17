@@ -26,6 +26,10 @@ CLIENT_ID = "s21-open-api"
 MAX_CELL_WIDTH = 34
 LIST_COLUMNS = 4
 
+# Fields that are required (not optional)
+REQUIRED_KEYS = {"username", "password", "campusId", "clusterId", "from", "to",
+                 "projectId", "coalitionId", "login", "courseId"}
+
 # ---------- color scheme (dark, modern) ----------
 COLORS = {
     "bg": "#1a1a2e",
@@ -249,7 +253,12 @@ def brief(value):
         if all(isinstance(x, dict) for x in value):
             parts = []
             for x in value:
-                parts.append(str(x.get("code") or x.get("name") or x.get("title") or x.get("id") or x))
+                code = x.get("code") or x.get("name") or x.get("title") or x.get("id") or x
+                eid = x.get("entityId")
+                if eid is not None and x.get("entityType") == "PROJECT":
+                    parts.append(f"{code} (ID:{eid})")
+                else:
+                    parts.append(str(code))
             return ", ".join(parts)
         return ", ".join(str(x) for x in value)
     if isinstance(value, dict):
@@ -643,15 +652,6 @@ COMMANDS = [
     # ---------- client-side filtering wrappers ----------
 ]
 
-# Apply wrappers
-for _i, _c in enumerate(COMMANDS):
-    if _c["name"] == "Участники кампуса":
-        COMMANDS[_i] = wrap_campus_participants(_c)
-    if _c["name"] == "Проекты участника":
-        COMMANDS[_i] = wrap_participant_projects(_c)
-    if _c["name"] == "Курсы участника":
-        COMMANDS[_i] = wrap_participant_courses(_c)
-
 # ---------- ALL-commands (auto-pagination) ----------
 ALL_COMMANDS = [
     make_all_pages_command("ВСЕ участники кампуса", "/campuses/{campusId}/participants", "participants",
@@ -722,6 +722,58 @@ SIDEBAR_ORDER = [
 
 
 # ---------- GUI ----------
+
+
+def wrap_graph(base):
+    def handler(api, values):
+        code, body = base["handler"](api, values)
+        if code != 200 or not isinstance(body, dict):
+            return code, body
+        поиск = (values.get("search") or "").lower().strip()
+        if not поиск:
+            return code, body
+        result = dict(body)
+        # filter nodes
+        if "nodes" in result and isinstance(result["nodes"], list):
+            filtered_nodes = []
+            for node in result["nodes"]:
+                match = False
+                if поиск in str(node.get("id", "")).lower():
+                    match = True
+                if поиск in str(node.get("label", "")).lower():
+                    match = True
+                for item in (node.get("items") or []):
+                    if поиск in str(item.get("id", "")).lower():
+                        match = True
+                    if поиск in str(item.get("code", "")).lower():
+                        match = True
+                    if поиск in str(item.get("entityId", "")).lower():
+                        match = True
+                if match:
+                    filtered_nodes.append(node)
+            result["nodes"] = filtered_nodes
+        # filter edges? keep edges whose source/target in filtered node ids
+        if "edges" in result and isinstance(result["edges"], list) and "nodes" in result:
+            node_ids = {n.get("id") for n in result["nodes"]}
+            filtered_edges = [e for e in result["edges"]
+                              if e.get("source") in node_ids or e.get("target") in node_ids]
+            result["edges"] = filtered_edges
+        return code, result
+
+    fields = list(base["fields"]) + [("Поиск (ID/название)", "search", "", False)]
+    return {"name": base["name"], "fields": fields, "handler": handler}
+
+
+# Apply wrappers
+for _i, _c in enumerate(COMMANDS):
+    if _c["name"] == "Участники кампуса":
+        COMMANDS[_i] = wrap_campus_participants(_c)
+    if _c["name"] == "Проекты участника":
+        COMMANDS[_i] = wrap_participant_projects(_c)
+    if _c["name"] == "Курсы участника":
+        COMMANDS[_i] = wrap_participant_courses(_c)
+    if _c["name"] == "Карта проектов":
+        COMMANDS[_i] = wrap_graph(_c)
 
 class App:
     def __init__(self, root):
@@ -962,8 +1014,12 @@ class App:
             for label, key, default, secret in fields:
                 row = tk.Frame(self.form_frame, bg=COLORS["panel"])
                 row.pack(fill=tk.X, pady=4)
-                tk.Label(row, text=label, bg=COLORS["panel"], fg=COLORS["text"], width=26, anchor=tk.W,
-                         font=("Segoe UI", 10)).pack(side=tk.LEFT)
+
+                label_text = label
+                if key not in REQUIRED_KEYS:
+                    label_text = f"{label} (необязательно)"
+                tk.Label(row, text=label_text, bg=COLORS["panel"], fg=COLORS["accent"],
+                         font=("Segoe UI", 9, "bold"), width=26, anchor=tk.W).pack(side=tk.LEFT)
                 if key == "type":
                     field = ttk.Combobox(row, values=["", "ACTIVITY", "EXAM", "TEST"], state="readonly")
                     field.set(default)
