@@ -3,6 +3,8 @@
 Python-приложение с графическим интерфейсом для работы с API School 21.
 Покрывает все эндпоинты из документации School 21 OpenAPI Specification.
 
+![Скриншот приложения](screenshots/app.png)
+
 ## Возможности
 
 - **37 команд** — от авторизации до графа проектов, включая команды с автоматической пагинацией («ВСЕ …»).
@@ -24,7 +26,6 @@ pip install -r requirements.txt
 ## Запуск
 
 ```bash
-cd /home/kern/Desktop/s21_api_project
 python3 s21_api_app.py
 ```
 
@@ -87,3 +88,7 @@ python3 s21_api_app.py
 - Python 3.8+
 - requests >= 2.31.0
 - tkinter (входит в стандартную библиотеку Python)
+
+## Репозиторий
+
+https://github.com/horek111/school_21_python_api_gui_app
