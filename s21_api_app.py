@@ -490,22 +490,23 @@ class Приложение:
         корень.configure(bg=ЦВЕТ["bg"])
 
         self._настроить_стили()
-        self._построить_интерфейс()
-        self._показать_окно_авторизации()
+        self._показать_экран_логина()
 
-    def _показать_окно_авторизации(self):
-        диалог = tk.Toplevel(self.корень)
-        диалог.title("Авторизация")
-        диалог.geometry("380x230")
-        диалог.configure(bg=ЦВЕТ["panel"])
-        диалог.resizable(False, False)
-        диалог.transient(self.корень)
-        диалог.grab_set()
+    def _показать_экран_логина(self):
+        for w in self.корень.winfo_children():
+            w.destroy()
+        self.корень.configure(bg=ЦВЕТ["bg"])
 
-        tk.Label(диалог, text="Вход в School 21 API", bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], font=("Segoe UI", 13, "bold")).pack(pady=(18, 8))
+        контейнер = tk.Frame(self.корень, bg=ЦВЕТ["bg"])
+        контейнер.pack(fill=tk.BOTH, expand=True)
 
-        форма = tk.Frame(диалог, bg=ЦВЕТ["panel"])
-        форма.pack(padx=28, fill=tk.X)
+        карточка = tk.Frame(контейнер, bg=ЦВЕТ["panel"], highlightbackground=ЦВЕТ["border"], highlightthickness=1)
+        карточка.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=400, height=320)
+
+        tk.Label(карточка, text="Вход в School 21 API", bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], font=("Segoe UI", 15, "bold")).pack(pady=(22, 12))
+
+        форма = tk.Frame(карточка, bg=ЦВЕТ["panel"])
+        форма.pack(padx=32, fill=tk.X)
 
         tk.Label(форма, text="Логин", bg=ЦВЕТ["panel"], fg=ЦВЕТ["text"], font=("Segoe UI", 10)).grid(row=0, column=0, sticky=tk.W, pady=6)
         поле_логин = ttk.Entry(форма)
@@ -518,7 +519,7 @@ class Приложение:
         форма.columnconfigure(1, weight=1)
 
         статус = tk.StringVar(value="")
-        tk.Label(диалог, textvariable=статус, bg=ЦВЕТ["panel"], fg=ЦВЕТ["error"], font=("Segoe UI", 9)).pack(pady=2)
+        tk.Label(карточка, textvariable=статус, bg=ЦВЕТ["panel"], fg=ЦВЕТ["error"], font=("Segoe UI", 9)).pack(pady=4)
 
         def войти():
             логин = поле_логин.get().strip()
@@ -529,22 +530,20 @@ class Приложение:
             try:
                 self.api.получить_токен(логин, пароль)
                 self.статус_токена.set("● Токен получен")
-                self.строка_статуса.set("Авторизация успешна")
-                диалог.destroy()
+                self._построить_основной_интерфейс()
             except Exception as e:
                 статус.set(f"Ошибка: {e}")
 
         def пропустить():
-            диалог.destroy()
+            self._построить_основной_интерфейс()
 
-        кнопки = tk.Frame(диалог, bg=ЦВЕТ["panel"])
+        кнопки = tk.Frame(карточка, bg=ЦВЕТ["panel"])
         кнопки.pack(pady=12)
         ttk.Button(кнопки, text="Войти", style="TButton", command=войти).pack(side=tk.LEFT, padx=6)
         ttk.Button(кнопки, text="Пропустить", style="Secondary.TButton", command=пропустить).pack(side=tk.LEFT, padx=6)
 
-        диалог.protocol("WM_DELETE_WINDOW", пропустить)
         поле_логин.focus_set()
-        self.корень.wait_window(диалог)
+        self.корень.bind("<Return>", lambda e: войти())
 
     def _настроить_стили(self):
         стиль = ttk.Style()
@@ -566,7 +565,7 @@ class Приложение:
         стиль.configure("TProgressbar", background=ЦВЕТ["accent"], troughcolor=ЦВЕТ["panel2"], bordercolor=ЦВЕТ["panel2"], lightcolor=ЦВЕТ["accent"], darkcolor=ЦВЕТ["accent"])
         стиль.configure("Vertical.TScrollbar", background=ЦВЕТ["panel2"], troughcolor=ЦВЕТ["bg"], arrowcolor=ЦВЕТ["muted"], bordercolor=ЦВЕТ["bg"])
 
-    def _построить_интерфейс(self):
+    def _построить_основной_интерфейс(self):
         # корневой контейнер
         главный = tk.Frame(self.корень, bg=ЦВЕТ["bg"])
         главный.pack(fill=tk.BOTH, expand=True)
